@@ -10,21 +10,25 @@ class Option {
 public:
     int index;
     std::string label;
-    std::function<void()> onClick;
+    void (*callback)(GtkWidget*, gpointer);
+
+    Option(int index, const std::string& label, void (*callback)(GtkWidget*, gpointer))
+        : index(index), label(label), callback(callback) {}
+    
 };
 
 class Menu {
 public:
     Menu(const std::vector<Option>& options);
     void run();
-
+    static void on_button_clicked(GtkWidget* widget, gpointer data);
+    static void on_exit_clicked(GtkWidget* widget, gpointer data);
 private:
     GtkWidget* window;
     GtkWidget* vbox;
     std::vector<Option> menuOptions;
 
-    static void on_button_clicked(GtkWidget* widget, gpointer data);
-    static void on_exit_clicked(GtkWidget* widget, gpointer data);
+    
 };
 
 #endif // FILE_MANAGER
