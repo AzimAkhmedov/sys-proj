@@ -39,5 +39,5 @@ void Menu::on_exit_clicked(GtkWidget* widget, gpointer data) {
 }
 
 void Menu::closeMenu() {
-    gtk_main_quit()
+    gtk_main_quit();
 }
