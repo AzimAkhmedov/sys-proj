@@ -5,14 +5,13 @@ Menu::Menu(const std::vector<Option>& options) : menuOptions(options) {
     gtk_init(nullptr, nullptr);
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "Menu");
-    gtk_window_set_default_size(GTK_WINDOW(window), 800, 600);
+    gtk_window_set_default_size(GTK_WINDOW(window), 300, 400);
     gtk_container_set_border_width(GTK_CONTAINER(window), 20);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), nullptr);
 
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_add(GTK_CONTAINER(window), vbox);
 
-    // Create buttons dynamically
     for (const auto& option : menuOptions) {
         GtkWidget* button = gtk_button_new_with_label(option.label.c_str());
         g_signal_connect(button, "clicked", G_CALLBACK(option.callback), this);
@@ -37,4 +36,8 @@ void Menu::on_button_clicked(GtkWidget* widget, gpointer data) {
 
 void Menu::on_exit_clicked(GtkWidget* widget, gpointer data) {
     gtk_main_quit();
+}
+
+void Menu::closeMenu() {
+    gtk_main_quit()
 }
