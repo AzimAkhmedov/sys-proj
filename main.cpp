@@ -4,8 +4,11 @@ using namespace std;
 
 void handleOpenFolderNavigation(GtkWidget *widget, gpointer data)
 {
-    
-    cout << "Open folder clicked" << endl;
+    Menu *menu = static_cast<Menu *>(data);
+    menu->closeMenu();
+
+    Explorer explorer;
+    explorer.run();
 }
 
 void clickOption1(GtkWidget *widget, gpointer data)
@@ -30,9 +33,11 @@ void runMenu()
     menu.run();
 }
 
-int main()
+int main(int argc, char *argv[])
+
 {
     App appState;
+    gtk_init(&argc, &argv);
     cout << appState.getAppState() << endl;
     runMenu();
 
