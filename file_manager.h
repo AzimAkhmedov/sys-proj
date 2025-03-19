@@ -4,7 +4,10 @@
 #include <gtk/gtk.h>
 #include <vector>
 #include <string>
+
+
 #include <unistd.h>
+
 
 class App
 {
@@ -35,12 +38,17 @@ public:
     void closeMenu();
     static void on_button_clicked(GtkWidget *widget, gpointer data);
     static void on_exit_clicked(GtkWidget *widget, gpointer data);
+    static void onCreateZipClicked(GtkWidget* widget, gpointer data);
+    static void onCopyFolderClicked(GtkWidget * widget, gpointer data);
 
 private:
     GtkWidget *window;
     GtkWidget *vbox;
     std::vector<Option> menuOptions;
 };
+
+bool createZipFromFolder(const std::string& folderPath);
+bool copyFolder(const std::string& folderPath);
 
 class Explorer
 {

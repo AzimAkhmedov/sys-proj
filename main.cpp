@@ -11,6 +11,7 @@ void handleOpenFolderNavigation(GtkWidget *widget, gpointer data)
     explorer.run();
 }
 
+
 void clickOption1(GtkWidget *widget, gpointer data)
 {
     cout << "Option 1 clicked" << endl;
@@ -23,8 +24,8 @@ void runMenu()
 
     options.push_back(Option(0, "Navigation", handleOpenFolderNavigation));
     options.push_back(Option(1, "Write New File", Menu::on_button_clicked));
-    options.push_back(Option(2, "", Menu::on_button_clicked));
-    options.push_back(Option(3, "Option 4", Menu::on_button_clicked));
+    options.push_back(Option(2, "Create ZIP", Menu::onCreateZipClicked));
+    options.push_back(Option(3, "Copy Folder", Menu::onCopyFolderClicked));
     options.push_back(Option(4, "Option 5", Menu::on_button_clicked));
     options.push_back(Option(5, "Option 6", Menu::on_button_clicked));
 
