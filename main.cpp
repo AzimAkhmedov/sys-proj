@@ -22,7 +22,7 @@ void runMenu()
 
     std::vector<Option> options;
 
-    options.push_back(Option(0, "Navigation", handleOpenFolderNavigation));
+    options.push_back(Option(0, "Navigation", Menu::onExplorerClicked));
     options.push_back(Option(1, "Write New File", Menu::on_button_clicked));
     options.push_back(Option(2, "Create ZIP", Menu::onCreateZipClicked));
     options.push_back(Option(3, "Copy Folder", Menu::onCopyFolderClicked));

@@ -4,10 +4,18 @@
 #include <gtk/gtk.h>
 #include <vector>
 #include <string>
-
+#include <fstream>
+#include <iostream>
+#include <vector>
+#include <map>
+#include <filesystem>
 
 #include <unistd.h>
 
+namespace fs = std::__fs::filesystem; // For MAC 
+
+
+void display_file_content(const std::string& file_path);
 
 class App
 {
@@ -40,6 +48,7 @@ public:
     static void on_exit_clicked(GtkWidget *widget, gpointer data);
     static void onCreateZipClicked(GtkWidget* widget, gpointer data);
     static void onCopyFolderClicked(GtkWidget * widget, gpointer data);
+    static void onExplorerClicked(GtkWidget *widget, gpointer data);
 
 private:
     GtkWidget *window;
