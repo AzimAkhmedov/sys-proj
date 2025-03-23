@@ -24,3 +24,12 @@ bool copyFolder(const std::string& folderPath) {
     }
     return (result == 0);
 }
+bool deleteFile(const std::string& filePath) {
+    std::string command = "./delete_file.sh \"" + filePath + "\"";
+    int result = system(command.c_str());
+
+    if (result != 0) {
+        std::cerr << "Error: Failed to delete file " << filePath << std::endl;
+    }
+    return (result == 0);
+}

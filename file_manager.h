@@ -49,13 +49,15 @@ public:
     static void onCreateZipClicked(GtkWidget* widget, gpointer data);
     static void onCopyFolderClicked(GtkWidget * widget, gpointer data);
     static void onExplorerClicked(GtkWidget *widget, gpointer data);
+    static void onDeleteFileClicked(GtkWidget *widget, gpointer data);
+
 
 private:
     GtkWidget *window;
     GtkWidget *vbox;
     std::vector<Option> menuOptions;
 };
-
+bool deleteFile(const std::string& filePath);
 bool createZipFromFolder(const std::string& folderPath);
 bool copyFolder(const std::string& folderPath);
 

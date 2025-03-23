@@ -315,3 +315,71 @@ void Menu::onCopyFolderClicked(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
     showMessageDialog(message, msgType);
 }
+void Menu::onDeleteFileClicked(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *dialog;
+    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+    dialog = gtk_file_chooser_dialog_new("Select File to Delete",
+                                         NULL,
+                                         action,
+                                         "_Cancel", GTK_RESPONSE_CANCEL,
+                                         "_Delete", GTK_RESPONSE_ACCEPT,
+                                         NULL);
+
+    std::string message;
+    GtkMessageType msgType = GTK_MESSAGE_INFO;
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+    {
+        char *filePath = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+        if (filePath)
+        {
+            std::cout << "Selected file: " << filePath << std::endl;
+
+            // Confirm before deleting
+            GtkWidget *confirmDialog = gtk_message_dialog_new(NULL,
+                                                               GTK_DIALOG_MODAL,
+                                                               GTK_MESSAGE_WARNING,
+                                                               GTK_BUTTONS_YES_NO,
+                                                               "Are you sure you want to delete '%s'?", filePath);
+            int response = gtk_dialog_run(GTK_DIALOG(confirmDialog));
+            gtk_widget_destroy(confirmDialog);
+
+            if (response == GTK_RESPONSE_YES)
+            {
+                bool success = deleteFile(filePath);
+                if (success)
+                {
+                    message = "File deleted successfully!";
+                    msgType = GTK_MESSAGE_INFO;
+                }
+                else
+                {
+                    message = "Failed to delete file.";
+                    msgType = GTK_MESSAGE_ERROR;
+                }
+            }
+            else
+            {
+                message = "File deletion cancelled.";
+                msgType = GTK_MESSAGE_WARNING;
+            }
+
+            g_free(filePath);
+        }
+        else
+        {
+            message = "No file selected!";
+            msgType = GTK_MESSAGE_WARNING;
+        }
+    }
+    else
+    {
+        message = "Operation cancelled.";
+        msgType = GTK_MESSAGE_WARNING;
+    }
+
+    gtk_widget_destroy(dialog);
+    showMessageDialog(message, msgType);
+}
