@@ -26,9 +26,7 @@ void runMenu()
     options.push_back(Option(1, "Write New File", Menu::on_button_clicked));
     options.push_back(Option(2, "Create ZIP", Menu::onCreateZipClicked));
     options.push_back(Option(3, "Copy Folder", Menu::onCopyFolderClicked));
-    options.push_back(Option(4, "Delete file", Menu::onDeleteFileClicked));
-    options.push_back(Option(5, "Option 6", Menu::on_button_clicked));
-
+    options.push_back(Option(4, "Delete file", Menu::onDeleteFileClicked));    
     Menu menu(options);
 
     menu.run();

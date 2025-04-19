@@ -17,7 +17,6 @@ prompt_for_correct_file() {
         fi
     done
 }
-
 # Check if file exists before deleting
 if [ -f "$1" ]; then
     rm "$1"
@@ -27,3 +26,4 @@ else
     echo "Error: File '$1' not found!"
     prompt_for_correct_file  # Ask user for correct file name
 fi
+

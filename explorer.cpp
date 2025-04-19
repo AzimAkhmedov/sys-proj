@@ -1,31 +1,12 @@
 #include "file_manager.h"
-#include "folder_navigation.h"
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <unistd.h>
 
-class Explorer {
-    private:
-        GtkWidget *window;
-        GtkWidget *list_box;
-        char current_path[1024];
-        FolderNavigation advancedNavigator; // New breadcrumb-based navigation
-    
-        void updateList();
-        void navigateTo(const char *dir_name);
-        void previewFile(const char *file_path);
-        static void on_delete_clicked(GtkWidget *widget, gpointer data);
-
-    
-    public:
-        Explorer();
-        void run();
-        static void on_item_clicked(GtkWidget *widget, gpointer data);
-    };
-    
 Explorer::Explorer()
 {
     getcwd(current_path, sizeof(current_path)); // Get current working directory
@@ -58,66 +39,128 @@ void Explorer::on_item_clicked(GtkWidget *widget, gpointer data)
     }
 }
 
-void Explorer::updateList() {
-    // Clear old list before updating
-    gtk_container_foreach(GTK_CONTAINER(list_box), (GtkCallback)gtk_widget_destroy, NULL);
+void Explorer::on_delete_clicked(GtkWidget *widget, gpointer data)
+{
+    auto *pair = static_cast<std::pair<Explorer*, std::string>*>(data);
+    Explorer *explorer = pair->first;
+    std::string item_name = pair->second;
+    
+    std::string full_path = std::string(explorer->current_path) + "/" + item_name;
+    
+    // Create confirmation dialog
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(explorer->window),
+                                             GTK_DIALOG_MODAL,
+                                             GTK_MESSAGE_QUESTION,
+                                             GTK_BUTTONS_YES_NO,
+                                             "Are you sure you want to delete '%s'?",
+                                             item_name.c_str());
+    
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+    
+    if (response == GTK_RESPONSE_YES)
+    {
+        struct stat path_stat;
+        if (stat(full_path.c_str(), &path_stat) == 0)
+        {
+            bool success = false;
+            if (S_ISDIR(path_stat.st_mode))
+            {
+                // For simplicity, we'll only delete empty directories
+                success = (rmdir(full_path.c_str()) == 0);
+            }
+            else if (S_ISREG(path_stat.st_mode))
+            {
+                success = (unlink(full_path.c_str()) == 0);
+            }
+            
+            if (!success)
+            {
+                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(explorer->window),
+                                                               GTK_DIALOG_MODAL,
+                                                               GTK_MESSAGE_ERROR,
+                                                               GTK_BUTTONS_OK,
+                                                               "Failed to delete '%s'",
+                                                               item_name.c_str());
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
+                gtk_widget_destroy(error_dialog);
+            }
+            else
+            {
+                explorer->updateList(); // Refresh the list after successful deletion
+            }
+        }
+    }
+    
+    delete pair; // Clean up the allocated pair
+}
 
-    // Add breadcrumb label to show current path
-    GtkWidget *breadcrumb_label = gtk_label_new(advancedNavigator.getBreadcrumbPath().c_str());
-    gtk_container_add(GTK_CONTAINER(list_box), breadcrumb_label);
+void Explorer::updateList()
+{
+    DIR *dir = opendir(current_path);
+    if (!dir)
+    {
+        std::cerr << "Failed to open directory: " << current_path << std::endl;
+        return;
+    }
 
-    // Add "Go Back" button if not in root directory
-    if (advancedNavigator.getBreadcrumbPath() != "/") {
+    gtk_container_foreach(GTK_CONTAINER(list_box), (GtkCallback)gtk_widget_destroy, NULL); // Clear list
+
+    // Add "Go Back" button to go up one directory
+    if (strcmp(current_path, "/") != 0) // Only show if not already in root
+    {
         GtkWidget *back_button = gtk_button_new_with_label("Go Back");
         g_signal_connect(back_button, "clicked", G_CALLBACK(on_item_clicked), this);
         gtk_container_add(GTK_CONTAINER(list_box), back_button);
     }
 
-    // Open the current directory
-    DIR *dir = opendir(advancedNavigator.getCurrentPath().c_str());
-    if (!dir) {
-        std::cerr << "Failed to open directory: " << advancedNavigator.getCurrentPath() << std::endl;
-        return;
-    }
-
     struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0) continue; // Ignore current folder
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") == 0) // Ignore current directory "."
+            continue;
 
-        std::string fullPath = advancedNavigator.getCurrentPath() + "/" + entry->d_name;
+        // Create a horizontal box for each item
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+        
+        // Create the item button
+        GtkWidget *item_button = gtk_button_new_with_label(entry->d_name);
+        g_signal_connect(item_button, "clicked", G_CALLBACK(on_item_clicked), this);
+        gtk_box_pack_start(GTK_BOX(hbox), item_button, TRUE, TRUE, 0);
 
-        // Create a horizontal box (file/folder + delete button if it's a file)
-        GtkWidget *fileBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-
-        // Create a button for the file/folder name
-        GtkWidget *fileButton = gtk_button_new_with_label(entry->d_name);
-        g_signal_connect(fileButton, "clicked", G_CALLBACK(on_item_clicked), this);
-        gtk_box_pack_start(GTK_BOX(fileBox), fileButton, TRUE, TRUE, 0);
-
-        // Check if it's a file (not a folder)
-        struct stat path_stat;
-        stat(fullPath.c_str(), &path_stat);
-
-        if (S_ISREG(path_stat.st_mode)) {  // If it's a file, add a delete button
-            GtkWidget *deleteButton = gtk_button_new_with_label("Delete");
-            g_signal_connect(deleteButton, "clicked", G_CALLBACK(on_delete_clicked), this);
-            gtk_box_pack_start(GTK_BOX(fileBox), deleteButton, FALSE, FALSE, 0);
+        // Create delete button (except for ".." directory)
+        if (strcmp(entry->d_name, "..") != 0)
+        {
+            GtkWidget *delete_button = gtk_button_new_with_label("Delete");
+            // We need to pass both the Explorer instance and the item name
+            auto *data = new std::pair<Explorer*, std::string>(this, entry->d_name);
+            g_signal_connect(delete_button, "clicked", G_CALLBACK(on_delete_clicked), data);
+            gtk_box_pack_start(GTK_BOX(hbox), delete_button, FALSE, FALSE, 0);
         }
 
-        // Add the fileBox (file/folder + delete button) to the list
-        gtk_container_add(GTK_CONTAINER(list_box), fileBox);
+        gtk_container_add(GTK_CONTAINER(list_box), hbox);
     }
 
     closedir(dir);
-    gtk_widget_show_all(list_box);  // Refresh UI to show updated file list
+    gtk_widget_show_all(list_box);
 }
 
-void Explorer::navigateTo(const char *dir_name) {
-    // Use the new navigation system
-    advancedNavigator.navigateTo(dir_name);
+void Explorer::navigateTo(const char *dir_name)
+{
+    if (strcmp(dir_name, "..") == 0)
+    {
+        chdir(".."); // Move to parent directory
+    }
+    else
+    {
+        std::string new_path = std::string(current_path) + "/" + dir_name;
+        if (chdir(new_path.c_str()) == 0) // Change directory
+        {
+            getcwd(current_path, sizeof(current_path));
+        }
+    }
 
-    // Update the UI
-    updateList();
+    updateList(); // Refresh list
 }
 
 void Explorer::previewFile(const char *file_path)
@@ -158,27 +201,4 @@ void Explorer::run()
     gtk_widget_show_all(window);
 
     gtk_main();
-}
-void Explorer::on_delete_clicked(GtkWidget *widget, gpointer data) {
-    Explorer *explorer = static_cast<Explorer *>(data);
-    const char *file_name = gtk_button_get_label(GTK_BUTTON(widget));
-    std::string full_path = std::string(explorer->current_path) + "/" + file_name;
-
-    // Confirm before deleting
-    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(explorer->window),
-                                               GTK_DIALOG_MODAL,
-                                               GTK_MESSAGE_WARNING,
-                                               GTK_BUTTONS_YES_NO,
-                                               "Are you sure you want to delete '%s'?", file_name);
-
-    int response = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog); // Always destroy dialog
-
-    if (response == GTK_RESPONSE_YES) {
-        if (deleteFile(full_path)) {
-            explorer->updateList(); // Refresh the list after deletion
-        } else {
-            std::cerr << "Failed to delete file: " << full_path << std::endl;
-        }
-    }
 }
