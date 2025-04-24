@@ -49,6 +49,7 @@ public:
     static void onCreateZipClicked(GtkWidget* widget, gpointer data);
     static void onCopyFolderClicked(GtkWidget * widget, gpointer data);
     static void onExplorerClicked(GtkWidget *widget, gpointer data);
+    static void onDeleteFileClicked(GtkWidget *widget, gpointer data);
 
 private:
     GtkWidget *window;
@@ -58,6 +59,8 @@ private:
 
 bool createZipFromFolder(const std::string& folderPath);
 bool copyFolder(const std::string& folderPath);
+bool deleteFile(const std::string& filePath);
+
 
 class Explorer
 {
@@ -68,12 +71,14 @@ private:
 
     void updateList();
     void navigateTo(const char *dir_name);
-    void previewFile(const char *file_path);
+    void previewFile(const char *file_path);  
+      
 
 public:
     Explorer();
     void run();
     static void on_item_clicked(GtkWidget *widget, gpointer data);
+    static void on_delete_clicked(GtkWidget *widget, gpointer data);
 };
 
 #endif // FILE_MANAGER

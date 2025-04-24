@@ -1,0 +1,86 @@
+/* Modern color palette */
+@define-color primary-color #6c5ce7;
+@define-color secondary-color #a8a4e6;
+@define-color background-color #f8f9fa;
+@define-color text-color #2d3436;
+@define-color hover-color #dfe6e9;
+@define-color border-color #e0e0e0;
+
+/* Window styling */
+window {
+    background-color: @background-color;
+    color: @text-color;
+}
+
+/* List box styling */
+list {
+    background-color: @background-color;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+/* Button styling */
+button {
+    background-color: white;
+    border: 1px solid @border-color;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 4px;
+    transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+    background-color: @hover-color;
+    border-color: @primary-color;
+}
+
+button:active {
+    background-color: @secondary-color;
+}
+
+/* Delete button specific styling */
+button.delete-button {
+    background-color: #ff7675;
+    color: white;
+    border: none;
+}
+
+button.delete-button:hover {
+    background-color: #d63031;
+}
+
+/* File item styling */
+.file-item {
+    padding: 8px;
+    margin: 4px;
+    border-radius: 6px;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.file-item:hover {
+    background-color: @hover-color;
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+    background-color: white;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Scrollbar styling */
+scrollbar {
+    background-color: @background-color;
+}
+
+scrollbar slider {
+    background-color: @secondary-color;
+    border-radius: 4px;
+}
+
+scrollbar slider:hover {
+    background-color: @primary-color;
+} 

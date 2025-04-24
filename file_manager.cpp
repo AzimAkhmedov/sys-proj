@@ -24,3 +24,16 @@ bool copyFolder(const std::string& folderPath) {
     }
     return (result == 0);
 }
+bool deleteFile(const std::string& filePath) {
+    try {
+        if (fs::remove(filePath)) {
+            return true;
+        } else {
+            std::cerr << "Error: Failed to delete file " << filePath << std::endl;
+            return false;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error deleting file: " << e.what() << std::endl;
+        return false;
+    }
+}
