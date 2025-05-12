@@ -1,9 +1,37 @@
 #include "file_manager.h"
 #include <iostream>
+#include <thread>
 
 GtkWidget *content_view;
 GtkWidget *sidebar_list;
 std::string current_folder;
+
+struct DirectoryStats
+{
+    int num_files = 0;
+    int num_dirs = 0;
+    uintmax_t total_size = 0;
+};
+
+DirectoryStats get_directory_stats(const std::string &path)
+{
+    DirectoryStats stats;
+
+    for (const auto &entry : fs::directory_iterator(path))
+    {
+        if (entry.is_regular_file())
+        {
+            stats.num_files++;
+            stats.total_size += entry.file_size();
+        }
+        else if (entry.is_directory())
+        {
+            stats.num_dirs++;
+        }
+    }
+
+    return stats;
+}
 
 extern "C" void on_file_clicked(GtkWidget *widget, gpointer data)
 {
@@ -56,6 +84,24 @@ std::map<std::string, std::vector<std::string>> categorize_files(const std::stri
     return categories;
 }
 
+void update_tag_sidebar(GtkWidget *tag_sidebar, const std::string &file_path)
+{
+    gtk_container_foreach(GTK_CONTAINER(tag_sidebar), (GtkCallback)gtk_widget_destroy, NULL);
+
+    std::vector<std::string> tags = {"Important", "To Review", "Archive", "Work", "Personal"};
+
+    GtkWidget *label = gtk_label_new("Tags");
+    gtk_container_add(GTK_CONTAINER(tag_sidebar), label);
+
+    for (const std::string &tag : tags)
+    {
+        GtkWidget *tag_button = gtk_button_new_with_label(tag.c_str());
+        gtk_container_add(GTK_CONTAINER(tag_sidebar), tag_button);
+    }
+
+    gtk_widget_show_all(tag_sidebar);
+}
+
 void update_sidebar(const std::string &folder)
 {
     current_folder = folder;
@@ -75,6 +121,7 @@ void update_sidebar(const std::string &folder)
         {
             GtkWidget *file_button = gtk_button_new_with_label(fs::path(file).filename().c_str());
             g_signal_connect(file_button, "clicked", G_CALLBACK(on_file_button_clicked), new std::string(file));
+            gtk_container_add(GTK_CONTAINER(sidebar_list), file_button);
         }
     }
     gtk_widget_show_all(sidebar_list);
@@ -162,8 +209,96 @@ void showMessageDialog(const std::string &message, GtkMessageType type)
     gtk_widget_destroy(dialog);
 }
 
+void Menu::onSearchClicked(GtkWidget *widget, gpointer data)
+{
+    Menu *this_ptr = static_cast<Menu *>(data);
+
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Search Files",
+                                                    GTK_WINDOW(this_ptr->window),
+                                                    GTK_DIALOG_MODAL,
+                                                    "_Search", GTK_RESPONSE_OK,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    NULL);
+    GtkWidget *content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+    GtkWidget *entry = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Enter file name or part...");
+    gtk_box_pack_start(GTK_BOX(content_area), entry, FALSE, FALSE, 0);
+
+    gtk_widget_show_all(dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK)
+    {
+        const gchar *query = gtk_entry_get_text(GTK_ENTRY(entry));
+        std::string search_query = query ? query : "";
+
+        if (!search_query.empty())
+        {
+            // Запускаем поиск в фоновом потоке
+            std::thread([this_ptr, search_query]()
+                        {
+                std::vector<std::string> results;
+                std::error_code ec;
+
+                for (fs::recursive_directory_iterator it("/", fs::directory_options::skip_permission_denied, ec), end;
+                     it != end; it.increment(ec))
+                {
+                    const auto &entry = *it;
+                    if (entry.is_regular_file(ec))
+                    {
+                        std::string name = entry.path().filename().string();
+                        if (name.find(search_query) != std::string::npos)
+                        {
+                            results.push_back(entry.path().string());
+                        }
+                    }
+                }
+
+                // Создаём окно с результатами в основном потоке
+                g_idle_add([](gpointer user_data) -> gboolean {
+                    auto data = static_cast<std::pair<Menu *, std::vector<std::string>> *>(user_data);
+                    Menu *this_ptr = data->first;
+                    const std::vector<std::string> &results = data->second;
+
+                    GtkWidget *resultWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+                    gtk_window_set_title(GTK_WINDOW(resultWindow), "Search Results");
+                    gtk_window_set_default_size(GTK_WINDOW(resultWindow), 500, 400);
+
+                    GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+                    GtkWidget *resultBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+                    gtk_container_add(GTK_CONTAINER(scroll), resultBox);
+                    gtk_container_add(GTK_CONTAINER(resultWindow), scroll);
+
+                    if (results.empty())
+                    {
+                        GtkWidget *label = gtk_label_new("No files found.");
+                        gtk_container_add(GTK_CONTAINER(resultBox), label);
+                    }
+                    else
+                    {
+                        for (const std::string &path : results)
+                        {
+                            GtkWidget *btn = gtk_button_new_with_label(fs::path(path).filename().c_str());
+                            g_signal_connect(btn, "clicked", G_CALLBACK(on_file_button_clicked), new std::string(path));
+                            gtk_box_pack_start(GTK_BOX(resultBox), btn, FALSE, FALSE, 0);
+                        }
+                    }
+
+                    gtk_widget_show_all(resultWindow);
+                    delete data;
+                    return FALSE;
+                }, new std::pair<Menu *, std::vector<std::string>>(this_ptr, results)); })
+                .detach(); // Фоновые потоки не блокируют интерфейс
+        }
+    }
+
+    gtk_widget_destroy(dialog);
+}
 void Menu::onExplorerClicked(GtkWidget *widget, gpointer data)
 {
+    // Приводим data к Menu*, чтобы получить доступ к членам класса
+    Menu *this_ptr = static_cast<Menu *>(data);
+
     GtkWidget *dialog = gtk_file_chooser_dialog_new(
         "Select a File",
         NULL,
@@ -178,39 +313,39 @@ void Menu::onExplorerClicked(GtkWidget *widget, gpointer data)
         std::string file_path(filename);
         g_free(filename);
 
-        // Open the file browser window
-        GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-        gtk_window_set_title(GTK_WINDOW(window), "File Explorer");
-        gtk_window_set_default_size(GTK_WINDOW(window), 800, 600);
+        // Окно для проводника
+        this_ptr->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+        gtk_window_set_title(GTK_WINDOW(this_ptr->window), "File Explorer");
+        gtk_window_set_default_size(GTK_WINDOW(this_ptr->window), 800, 600);
 
         GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-        gtk_container_add(GTK_CONTAINER(window), hbox);
+        gtk_container_add(GTK_CONTAINER(this_ptr->window), hbox);
 
-        // Sidebar (file categories)
+        // Боковая панель
         sidebar_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
         GtkWidget *sidebar_scroll = gtk_scrolled_window_new(NULL, NULL);
         gtk_widget_set_size_request(sidebar_scroll, 200, -1);
         gtk_container_add(GTK_CONTAINER(sidebar_scroll), sidebar_list);
         gtk_box_pack_start(GTK_BOX(hbox), sidebar_scroll, FALSE, FALSE, 0);
 
-        // File content view
+        // Вид содержимого файла
         content_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(content_view), FALSE);
         GtkWidget *content_scroll = gtk_scrolled_window_new(NULL, NULL);
         gtk_container_add(GTK_CONTAINER(content_scroll), content_view);
         gtk_box_pack_start(GTK_BOX(hbox), content_scroll, TRUE, TRUE, 0);
 
-        // Update sidebar with files from the selected file's directory
+        // Обновление боковой панели
         update_sidebar(fs::path(file_path).parent_path().string());
 
-        // Show window
-        // g_signal_connect(file_button, "clicked", G_CALLBACK(on_file_clicked), file_path);
+        // Кнопка выбранного файла
         GtkWidget *file_button = gtk_button_new_with_label(fs::path(file_path).filename().c_str());
         g_signal_connect(file_button, "clicked", G_CALLBACK(on_file_clicked), new std::string(file_path));
         gtk_container_add(GTK_CONTAINER(sidebar_list), file_button);
-        gtk_widget_show_all(window);
 
-        // Display selected file content
+        gtk_widget_show_all(this_ptr->window);
+
+        // Отображение содержимого
         display_file_content(file_path);
     }
 
@@ -339,10 +474,10 @@ void Menu::onDeleteFileClicked(GtkWidget *widget, gpointer data)
 
             // Confirm before deleting
             GtkWidget *confirmDialog = gtk_message_dialog_new(NULL,
-                                                               GTK_DIALOG_MODAL,
-                                                               GTK_MESSAGE_WARNING,
-                                                               GTK_BUTTONS_YES_NO,
-                                                               "Are you sure you want to delete '%s'?", filePath);
+                                                              GTK_DIALOG_MODAL,
+                                                              GTK_MESSAGE_WARNING,
+                                                              GTK_BUTTONS_YES_NO,
+                                                              "Are you sure you want to delete '%s'?", filePath);
             int response = gtk_dialog_run(GTK_DIALOG(confirmDialog));
             gtk_widget_destroy(confirmDialog);
 

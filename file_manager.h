@@ -12,15 +12,14 @@
 
 #include <unistd.h>
 
-namespace fs = std::__fs::filesystem; // For MAC 
+namespace fs = std::__fs::filesystem; // For MAC
 
-
-void display_file_content(const std::string& file_path);
+void display_file_content(const std::string &file_path);
 
 class App
 {
 private:
-    std::string appState; // "menu" | "navigation" | "write" | "read" | "exit"
+    std::string appState;
 
 public:
     void setAppState(std::string state) { appState = state; }
@@ -46,10 +45,11 @@ public:
     void closeMenu();
     static void on_button_clicked(GtkWidget *widget, gpointer data);
     static void on_exit_clicked(GtkWidget *widget, gpointer data);
-    static void onCreateZipClicked(GtkWidget* widget, gpointer data);
-    static void onCopyFolderClicked(GtkWidget * widget, gpointer data);
+    static void onCreateZipClicked(GtkWidget *widget, gpointer data);
+    static void onCopyFolderClicked(GtkWidget *widget, gpointer data);
     static void onExplorerClicked(GtkWidget *widget, gpointer data);
     static void onDeleteFileClicked(GtkWidget *widget, gpointer data);
+    static void onSearchClicked(GtkWidget *widget, gpointer data);
 
 private:
     GtkWidget *window;
@@ -57,10 +57,9 @@ private:
     std::vector<Option> menuOptions;
 };
 
-bool createZipFromFolder(const std::string& folderPath);
-bool copyFolder(const std::string& folderPath);
-bool deleteFile(const std::string& filePath);
-
+bool createZipFromFolder(const std::string &folderPath);
+bool copyFolder(const std::string &folderPath);
+bool deleteFile(const std::string &filePath);
 
 class Explorer
 {
@@ -71,8 +70,7 @@ private:
 
     void updateList();
     void navigateTo(const char *dir_name);
-    void previewFile(const char *file_path);  
-      
+    void previewFile(const char *file_path);
 
 public:
     Explorer();

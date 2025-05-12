@@ -7,9 +7,22 @@
 #include <dirent.h>
 #include <unistd.h>
 
-Explorer::Explorer()
-{
+Explorer::Explorer() {
     getcwd(current_path, sizeof(current_path));
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "Explorer");
+    gtk_window_set_default_size(GTK_WINDOW(window), 600, 400);
+
+    GtkWidget* scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_container_add(GTK_CONTAINER(window), scrolled);
+
+    list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_add(GTK_CONTAINER(scrolled), list_box);
+
+    updateList();
+
+    g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 }
 
 void Explorer::on_item_clicked(GtkWidget *widget, gpointer data)
@@ -41,23 +54,23 @@ void Explorer::on_item_clicked(GtkWidget *widget, gpointer data)
 
 void Explorer::on_delete_clicked(GtkWidget *widget, gpointer data)
 {
-    auto *pair = static_cast<std::pair<Explorer*, std::string>*>(data);
+    auto *pair = static_cast<std::pair<Explorer *, std::string> *>(data);
     Explorer *explorer = pair->first;
     std::string item_name = pair->second;
-    
+
     std::string full_path = std::string(explorer->current_path) + "/" + item_name;
-    
+
     // Create confirmation dialog
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(explorer->window),
-                                             GTK_DIALOG_MODAL,
-                                             GTK_MESSAGE_QUESTION,
-                                             GTK_BUTTONS_YES_NO,
-                                             "Are you sure you want to delete '%s'?",
-                                             item_name.c_str());
-    
+                                               GTK_DIALOG_MODAL,
+                                               GTK_MESSAGE_QUESTION,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Are you sure you want to delete '%s'?",
+                                               item_name.c_str());
+
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
-    
+
     if (response == GTK_RESPONSE_YES)
     {
         struct stat path_stat;
@@ -73,15 +86,15 @@ void Explorer::on_delete_clicked(GtkWidget *widget, gpointer data)
             {
                 success = (unlink(full_path.c_str()) == 0);
             }
-            
+
             if (!success)
             {
                 GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(explorer->window),
-                                                               GTK_DIALOG_MODAL,
-                                                               GTK_MESSAGE_ERROR,
-                                                               GTK_BUTTONS_OK,
-                                                               "Failed to delete '%s'",
-                                                               item_name.c_str());
+                                                                 GTK_DIALOG_MODAL,
+                                                                 GTK_MESSAGE_ERROR,
+                                                                 GTK_BUTTONS_OK,
+                                                                 "Failed to delete '%s'",
+                                                                 item_name.c_str());
                 gtk_dialog_run(GTK_DIALOG(error_dialog));
                 gtk_widget_destroy(error_dialog);
             }
@@ -91,96 +104,109 @@ void Explorer::on_delete_clicked(GtkWidget *widget, gpointer data)
             }
         }
     }
-    
+
     delete pair; // Clean up the allocated pair
 }
 
-void Explorer::updateList()
-{
+bool isImage(const std::string& filename) {
+    const char* exts[] = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"};
+    for (const auto& ext : exts) {
+        if (filename.size() >= strlen(ext) && filename.compare(filename.size() - strlen(ext), strlen(ext), ext) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool isAudio(const std::string& filename) {
+    const char* exts[] = {".mp3", ".wav", ".aac", ".ogg", ".flac"};
+    for (const auto& ext : exts) {
+        if (filename.size() >= strlen(ext) && filename.compare(filename.size() - strlen(ext), strlen(ext), ext) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool isVideo(const std::string& filename) {
+    const char* exts[] = {".mp4", ".avi", ".mov", ".mkv", ".webm"};
+    for (const auto& ext : exts) {
+        if (filename.size() >= strlen(ext) && filename.compare(filename.size() - strlen(ext), strlen(ext), ext) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool isDocument(const std::string& filename) {
+    const char* exts[] = {".pdf", ".doc", ".docx", ".txt", ".xls", ".xlsx", ".ppt", ".pptx"};
+    for (const auto& ext : exts) {
+        if (filename.size() >= strlen(ext) && filename.compare(filename.size() - strlen(ext), strlen(ext), ext) == 0)
+            return true;
+    }
+    return false;
+}
+
+void Explorer::updateList() {
     DIR *dir = opendir(current_path);
-    if (!dir)
-    {
+    if (!dir) {
         std::cerr << "Failed to open directory: " << current_path << std::endl;
         return;
     }
 
-    // Clear existing widgets
     gtk_container_foreach(GTK_CONTAINER(list_box), (GtkCallback)gtk_widget_destroy, NULL);
 
-    // Create breadcrumb navigation
-    GtkWidget *breadcrumb_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_widget_set_name(breadcrumb_box, "breadcrumb");
-    gtk_style_context_add_class(gtk_widget_get_style_context(breadcrumb_box), "breadcrumb");
-    
-    std::string path = current_path;
-    size_t pos = 0;
-    while ((pos = path.find("/", pos)) != std::string::npos) {
-        std::string part = path.substr(0, pos);
-        GtkWidget *crumb = gtk_button_new_with_label(part.c_str());
-        gtk_box_pack_start(GTK_BOX(breadcrumb_box), crumb, FALSE, FALSE, 0);
-        pos++;
-    }
-    gtk_container_add(GTK_CONTAINER(list_box), breadcrumb_box);
-
-    // Add "Go Back" button with icon
-    if (strcmp(current_path, "/") != 0)
-    {
-        GtkWidget *back_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-        GtkWidget *back_icon = gtk_image_new_from_icon_name("go-previous", GTK_ICON_SIZE_BUTTON);
-        GtkWidget *back_button = gtk_button_new_with_label("Go Back");
-        gtk_button_set_image(GTK_BUTTON(back_button), back_icon);
-        gtk_box_pack_start(GTK_BOX(back_box), back_button, TRUE, TRUE, 0);
-        g_signal_connect(back_button, "clicked", G_CALLBACK(on_item_clicked), this);
-        gtk_container_add(GTK_CONTAINER(list_box), back_box);
-    }
+    std::vector<std::pair<std::string, std::string>> images, audios, videos, documents;
 
     struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL)
-    {
+    while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0)
             continue;
 
-        // Create item container
-        GtkWidget *item_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-        gtk_widget_set_name(item_box, "file-item");
-        gtk_style_context_add_class(gtk_widget_get_style_context(item_box), "file-item");
-
-        // Add icon based on file type
-        GtkWidget *icon;
         std::string full_path = std::string(current_path) + "/" + entry->d_name;
         struct stat path_stat;
-        if (stat(full_path.c_str(), &path_stat) == 0)
-        {
-            if (S_ISDIR(path_stat.st_mode))
-                icon = gtk_image_new_from_icon_name("folder", GTK_ICON_SIZE_BUTTON);
-            else
-                icon = gtk_image_new_from_icon_name("text-x-generic", GTK_ICON_SIZE_BUTTON);
+        if (stat(full_path.c_str(), &path_stat) != 0) continue;
+
+        if (S_ISREG(path_stat.st_mode)) {
+            if (isImage(entry->d_name)) images.emplace_back(entry->d_name, full_path);
+            else if (isAudio(entry->d_name)) audios.emplace_back(entry->d_name, full_path);
+            else if (isVideo(entry->d_name)) videos.emplace_back(entry->d_name, full_path);
+            else if (isDocument(entry->d_name)) documents.emplace_back(entry->d_name, full_path);
         }
-        gtk_box_pack_start(GTK_BOX(item_box), icon, FALSE, FALSE, 0);
+    }
+    closedir(dir);
 
-        // Add item button
-        GtkWidget *item_button = gtk_button_new_with_label(entry->d_name);
-        gtk_button_set_relief(GTK_BUTTON(item_button), GTK_RELIEF_NONE);
-        gtk_box_pack_start(GTK_BOX(item_box), item_button, TRUE, TRUE, 0);
-        g_signal_connect(item_button, "clicked", G_CALLBACK(on_item_clicked), this);
+    auto addSection = [this](const char* title, const std::vector<std::pair<std::string, std::string>>& items) {
+        if (items.empty()) return;
 
-        // Add delete button
-        if (strcmp(entry->d_name, "..") != 0)
-        {
+        GtkWidget* section_label = gtk_label_new(title);
+        gtk_widget_set_name(section_label, "section-label");
+        gtk_box_pack_start(GTK_BOX(list_box), section_label, FALSE, FALSE, 5);
+
+        for (const auto& item : items) {
+            GtkWidget *item_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+            GtkWidget *icon = gtk_image_new_from_icon_name("text-x-generic", GTK_ICON_SIZE_BUTTON);
+            gtk_box_pack_start(GTK_BOX(item_box), icon, FALSE, FALSE, 0);
+
+            GtkWidget *item_button = gtk_button_new_with_label(item.first.c_str());
+            gtk_button_set_relief(GTK_BUTTON(item_button), GTK_RELIEF_NONE);
+            gtk_box_pack_start(GTK_BOX(item_box), item_button, TRUE, TRUE, 0);
+            g_signal_connect(item_button, "clicked", G_CALLBACK(on_item_clicked), this);
+
             GtkWidget *delete_button = gtk_button_new_with_label("Delete");
-            gtk_widget_set_name(delete_button, "delete-button");
-            gtk_style_context_add_class(gtk_widget_get_style_context(delete_button), "delete-button");
-            auto *data = new std::pair<Explorer*, std::string>(this, entry->d_name);
+            auto *data = new std::pair<Explorer*, std::string>(this, item.first);
             g_signal_connect(delete_button, "clicked", G_CALLBACK(on_delete_clicked), data);
             gtk_box_pack_start(GTK_BOX(item_box), delete_button, FALSE, FALSE, 0);
+
+            gtk_container_add(GTK_CONTAINER(list_box), item_box);
         }
+    };
 
-        gtk_container_add(GTK_CONTAINER(list_box), item_box);
-    }
+    addSection("Images", images);
+    addSection("Audios", audios);
+    addSection("Videos", videos);
+    addSection("Documents", documents);
 
-    closedir(dir);
     gtk_widget_show_all(list_box);
 }
+
 
 void Explorer::navigateTo(const char *dir_name)
 {
@@ -234,8 +260,8 @@ void Explorer::run()
     GtkCssProvider *provider = gtk_css_provider_new();
     gtk_css_provider_load_from_path(provider, "style.css", NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-                                            GTK_STYLE_PROVIDER(provider),
-                                            GTK_STYLE_PROVIDER_PRIORITY_USER);
+                                              GTK_STYLE_PROVIDER(provider),
+                                              GTK_STYLE_PROVIDER_PRIORITY_USER);
 
     // Create main container
     GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -244,8 +270,8 @@ void Explorer::run()
     // Create scrolled window for list
     GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window),
-                                 GTK_POLICY_AUTOMATIC,
-                                 GTK_POLICY_AUTOMATIC);
+                                   GTK_POLICY_AUTOMATIC,
+                                   GTK_POLICY_AUTOMATIC);
     gtk_box_pack_start(GTK_BOX(main_box), scrolled_window, TRUE, TRUE, 0);
 
     // Create list box
